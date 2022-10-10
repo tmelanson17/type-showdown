@@ -6,7 +6,7 @@ import numpy as np
 
 class Player(ABC):
     @abstractmethod
-    def act(self, options: list[Enum], metadata: dict):
+    def act(self, options: list[Enum], state: dict):
         pass
 
 
@@ -95,3 +95,9 @@ if __name__ == "__main__":
     print(results)
 
 
+    # Equal
+    p1 = np.array([0,1,0])
+    p2 = np.array([1,0,0])
+    p3 = np.array([0,0,1])
+    results = tournament.play_round([p1, p2, p3])
+    print(results)
