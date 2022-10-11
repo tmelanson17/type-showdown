@@ -1,7 +1,7 @@
 import random
 from attrs import define, field
 from enum import Enum, IntEnum
-from tournament import Player, Game
+from tournament import Player, Game, Tournament
 
 class Type(IntEnum):
     NULL = 0
@@ -27,7 +27,7 @@ EFFECTIVE_TABLE = [
  [+1, +1, +1, +2, +1, +1, +1, -2, +0, +2],#FLYNG 
  [+1, +2, +1, -2, +1, +0, +1, +2, +0, +2],# GRND 
  [+1, +1, +2, -2, +1, +2, +0, -2, +0, +2],# ELEC 
- [+1, +2, +2, +2, +2, +2, +2, +2, +1, +2],# GOD 
+ [+1, +2, +2, +2, +2, +2, +2, +2, +1, +4],# GOD 
  [+1, +0, +0, +0, +0, +0, +0, +0, +0, +1],# WEAK 
  #NL #FR #WTR#GR #NRM#FLY#GRD#ELE#GOD#WEAK
  ]
@@ -35,8 +35,8 @@ EFFECTIVE_TABLE = [
 # TODO: centralize damage calculations
 # TODO: clean up AI state
 class AI:
-    def __init__(self, player):
-        self._player_info = player
+    def __init__(self, config):
+        pass
  
     def calculate_damage(self, pokemon, attacking_type):
         return multiply_type_effectiveness(
@@ -47,17 +47,19 @@ class AI:
     def calculate_best_move_damage(self, attacking_pokemon, recv_pokemon):
         max_damage = 0
         max_idx=0
-        for i, type in enumerate(attacking_pokemon.types()):
-            calc_damage = self.calculate_damage(recv_pokemon, type)
+        for i, typ in enumerate(attacking_pokemon.types()):
+            calc_damage = self.calculate_damage(recv_pokemon, typ)
             if calc_damage > max_damage:
                 max_damage = calc_damage
                 max_idx = i
         return max_damage, max_idx
  
-    def optimal_move(self, opposing_pokemon, options):
+    def optimal_move(self, state, options):
+        opposing_pokemon  = state['opposing_pokemon']
+        active_pokemon = state['active_pokemon']
+        pokemon_team = state['pokemon_team']
         # Assume you get to attack next turn, and that both moves hit
         expected_values = []
-        active_pokemon = self._player_info.get_active_pokemon()
         max_opposing_damage, opposing_type = self.calculate_best_move_damage(opposing_pokemon, active_pokemon) 
         
         max_two_turn_expected_value = -99
@@ -69,28 +71,15 @@ class AI:
                         max_opposing_damage
                 )
             elif o.is_swap():
-                swap_pokemon = self._player_info.pokemon_team[o.new_idx]
-                max_expected_damage = 0
-                for type in swap_pokemon.types():
-                    expected_damage = self.calculate_best_move_damage(swap_pokemon, opposing_pokemon)[0]
-                    expected_damage -= self.calculate_damage(swap_pokemon, opposing_pokemon.types()[opposing_type])
-                    expected_damage -= self.calculate_best_move_damage(opposing_pokemon, swap_pokemon)[0]
-                    max_expected_damage = max(max_expected_damage, expected_damage)
+                swap_pokemon = pokemon_team[o.new_idx]
+                expected_damage = self.calculate_best_move_damage(swap_pokemon, opposing_pokemon)[0]
+                expected_damage -= self.calculate_damage(swap_pokemon, opposing_pokemon.types()[opposing_type])
+                expected_damage -= self.calculate_best_move_damage(opposing_pokemon, swap_pokemon)[0]
             if expected_damage > max_two_turn_expected_value:
                 max_two_turn_expected_value = expected_damage
                 idx = i
  
         return idx
- 
-class AIPlayer(Player):
-    def __init__(self, player_info):
-        self.AI = AI(player_info)
-    '''
-        Assume opposing player will be part of state
-    '''
-    def act(self, options, state):
-        opposing_pokemon = state['opposing_pokemon']
-        return self.AI.optimal_move(opposing_pokemon, options)
         
         
  
@@ -131,6 +120,49 @@ class Pokemon(object):
  
     def types(self):
         return [self.primary_typing, self.secondary_typing]
+
+@define
+class PokemonTeam(object):
+    pokemon_team : list[Pokemon]
+    active_pokemon_idx : int = field(default=0)
+ 
+    def get_active_pokemon(self):
+        return self.pokemon_team[self.active_pokemon_idx]
+ 
+    def switch_active_pokemon(self, new_idx):
+        if self.active_pokemon_idx == new_idx:
+            raise Exception("Can't swap to the same pokemon!")
+        self.active_pokemon_idx = new_idx
+ 
+    # Returns true if kod, false if not
+    def take_damage(self, dmg):
+        pokemon = self.get_active_pokemon()
+        pokemon.health = max(pokemon.health - dmg, 0)
+        if pokemon.health == 0:
+            pokemon.status = Status.FNT
+            return True
+        return False
+ 
+    def defeated(self):
+        for pokemon in self.pokemon_team:
+            if not pokemon.status == Status.FNT:
+                return False
+        return True
+
+    def print_current_state(self):
+        pokemon = self.get_active_pokemon()
+        print(pokemon.name)
+        print(pokemon.primary_typing.name + "/" + pokemon.secondary_typing.name)
+        print(str(pokemon.health) + "/" + str(pokemon.max_health))
+ 
+
+    def __len__(self):
+        return len(self.pokemon_team)
+
+
+    def __getitem__(self, i):
+        return self.pokemon_team[i]
+
  
  
 class Option():
@@ -154,11 +186,10 @@ class AttackOption(Option):
  
  
 class SwapOption(Option):
-    def __init__(self, player, idx):
-        pokemon_team = player.pokemon_team
+    def __init__(self, pokemon_team, idx):
         self.valid = (
                 pokemon_team[idx].status != Status.FNT and
-                player.active_pokemon_idx != idx
+                pokemon_team.active_pokemon_idx != idx
         )
         self.pokemon_name = pokemon_team[idx].name
         self.new_idx = idx
@@ -169,18 +200,21 @@ class SwapOption(Option):
     def is_swap(self):
         return True
  
+@define
+class PokemonState:
+    opposing_pokemon: Pokemon
+    active_pokemon: Pokemon
+    team: PokemonTeam
+
  
 class Player:
-    def __init__(self, name, pokemon_team, is_human=False):
+    def __init__(self, name, pokemon_config, is_human=False):
         self.name = name
-        self.pokemon_team = pokemon_team
+        self.pokemon_config = pokemon_config
         self.is_human = is_human
         self.active_pokemon_idx = 0
         if not is_human:
-            self.ai = AI(self)
- 
-    def get_active_pokemon(self):
-        return self.pokemon_team[self.active_pokemon_idx]
+            self.ai = AI(pokemon_config)
  
     def human_player_act(self, options):
         for i, o in enumerate(options):
@@ -188,38 +222,13 @@ class Player:
         idx = input("Choose an option: ")
         return options[int(idx)]
  
-    def print_current_state(self):
-        pokemon = self.get_active_pokemon()
-        print(pokemon.name)
-        print(pokemon.primary_typing.name + "/" + pokemon.secondary_typing.name)
-        print(str(pokemon.health) + "/" + str(pokemon.max_health))
- 
+
     def act(self, state, options):
-        opposing_pokemon = state
+
         if self.is_human:
             return self.human_player_act(options)
         else:
-            return options[self.ai.optimal_move(opposing_pokemon, options)]
- 
-    def switch_active_pokemon(self, new_idx):
-        if self.active_pokemon_idx == new_idx:
-            raise Exception("Can't swap between pokemon of the same type!")
-        self.active_pokemon_idx = new_idx
- 
-    # Returns true if kod, false if not
-    def take_damage(self, dmg):
-        pokemon = self.get_active_pokemon()
-        pokemon.health = max(pokemon.health - dmg, 0)
-        if pokemon.health == 0:
-            pokemon.status = Status.FNT
-            return True
-        return False
- 
-    def defeated(self):
-        for pokemon in self.pokemon_team:
-            if not pokemon.status == Status.FNT:
-                return False
-        return True
+            return options[self.ai.optimal_move(state, options)]
  
  
 '''
@@ -233,16 +242,20 @@ class PokemonGame(Game):
         self._n_iterations = n_iterations
         self._iterations = 0
         self.debug = debug
+
+    def reset(self):
+        self._over = False
+        self._iterations = 0
  
-    def _get_options(self, player, swap_only=False):
+    def _get_options(self, pokemon_team, swap_only=False):
         options = []
-        for i in range(len(player.pokemon_team)):
-            option = SwapOption(player, i)
+        for i in range(len(pokemon_team)):
+            option = SwapOption(pokemon_team, i)
             if option.valid:
                 options.append(option)
         if swap_only:
             return options
-        active_pokemon = player.get_active_pokemon()
+        active_pokemon = pokemon_team.get_active_pokemon()
         # This should only be triggered if game is over.
         if active_pokemon.status == Status.FNT:
             return options
@@ -255,78 +268,93 @@ class PokemonGame(Game):
             options.append(secondary_attack)
         return options
  
-    def execute_swap(self, player, action):
+    def execute_swap(self, player, team, action):
         if self.debug:
             print(f"Player {player.name} swapped to {action.pokemon_name}!")
-        player.switch_active_pokemon(action.new_idx)
+        team.switch_active_pokemon(action.new_idx)
  
-    def execute_attack(self, att_player, recv_player, action):
+    def execute_attack(self, att_team, recv_team, action):
         if self.debug:
-            print(f"{att_player.get_active_pokemon().name} used {str(action)} on {recv_player.get_active_pokemon().name}!")
+            print(f"{att_team.get_active_pokemon().name} used {str(action)} on {recv_team.get_active_pokemon().name}!")
         
-        damage = multiply_type_effectiveness(action, recv_player.get_active_pokemon().types())
-        return recv_player.take_damage(damage)
+        damage = multiply_type_effectiveness(action, recv_team.get_active_pokemon().types())
+        return recv_team.take_damage(damage)
  
-    def play_round(self, player1, player2):
+    def play_round(self, player1, player2, p1_team, p2_team):
         if self._over:
             return
         # TODO: move to render
         if self.debug:
             print()
             print("======BATTTLE=======")
-            print(f"======{self._p1.name}======")
-            player1.print_current_state()
-            print(f"======{self._p2.name}======")
-            self._p2.print_current_state()
+            print(f"======{player1.name}======")
+            p1_team.print_current_state()
+            print(f"======{player2.name}======")
+            p2_team.print_current_state()
             print("====================")
             print()
  
-        start_options_1 = self._get_options(player1)
-        start_options_2 = self._get_options(player2)
+        start_options_1 = self._get_options(p1_team)
+        start_options_2 = self._get_options(p2_team)
+
+        state1 = {
+                'opposing_pokemon': p2_team.get_active_pokemon(), 
+                'active_pokemon': p1_team.get_active_pokemon(), 
+                'pokemon_team': p1_team
+        }
+        state2 = {
+                'opposing_pokemon': p1_team.get_active_pokemon(), 
+                'active_pokemon': p2_team.get_active_pokemon(), 
+                'pokemon_team': p2_team
+        }
  
-        action1 = player1.act(player2.get_active_pokemon(), start_options_1)
-        action2 = player2.act(player1.get_active_pokemon(), start_options_2)
+        action1 = player1.act(state1, start_options_1)
+        action2 = player2.act(state2, start_options_2)
  
  
         # flip a coin to see who goes first
         p1_first = random.random() < 0.5
+        start_team = p1_team if p1_first else p2_team
         start_player = player1 if p1_first else player2
-        last_player = player2 if p1_first else player1
+        start_state = state1 if p1_first else state2
         start_action = action1 if p1_first else action2
+        last_team = p2_team if p1_first else p1_team
+        last_player = player2 if p1_first else player1
+        last_state = state2 if p1_first else state1
         last_action = action2 if p1_first else action1
             
         # Swap phase
         if start_action.is_swap():
-            self.execute_swap(start_player, start_action)
+            self.execute_swap(start_player, start_team, start_action)
         if last_action.is_swap():
-            self.execute_swap(last_player, last_action)
+            self.execute_swap(last_player, last_team, last_action)
  
         # Attack phase
         # TODO: Merge KO logic into one
         kod=False
         if start_action.is_attack():
-            kod = self.execute_attack(start_player, last_player, start_action)
+            kod = self.execute_attack(start_team, last_team, start_action)
             if kod:
                 if self.debug:
-                    print(f"{last_player.get_active_pokemon().name} fainted!")
-                new_options = self._get_options(last_player, swap_only=True)
+                    print(f"{last_team.get_active_pokemon().name} fainted!")
+                new_options = self._get_options(last_team, swap_only=True)
                 if len(new_options) > 0:
-                    swp = last_player.act(start_player.get_active_pokemon(), new_options)
-                    self.execute_swap(last_player, swp)
+                    swp = last_player.act(last_state, new_options)
+                    self.execute_swap(last_player, last_team, swp)
         if not kod and last_action.is_attack():
-            kod = self.execute_attack(last_player, start_player, last_action)
+            kod = self.execute_attack(last_team, start_team, last_action)
             if kod:
                 if self.debug:
-                    print(f"{start_player.get_active_pokemon().name} fainted!")
-                new_options = self._get_options(start_player, swap_only=True)
+                    print(f"{start_team.get_active_pokemon().name} fainted!")
+                new_options = self._get_options(start_team, swap_only=True)
                 if len(new_options) > 0:
-                    swp = start_player.act(last_player.get_active_pokemon(), new_options)
-                    self.execute_swap(start_player, swp)
+                    swp = start_player.act(start_state, new_options)
+                    self.execute_swap(start_player, start_team, swp)
  
-        if player1.defeated():
+        if p1_team.defeated():
             print("Player 2 wins!")
             self._over = True
-        if player2.defeated():
+        if p2_team.defeated():
             print("Player 1 wins!")
             self._over = True   
         self._iterations += 1
@@ -335,12 +363,14 @@ class PokemonGame(Game):
         return self._over or self._iterations >= self._n_iterations
  
     def play(self, player1, player2):
+        p1_team = generate_team(player1.pokemon_config)
+        p2_team = generate_team(player2.pokemon_config)
         while not self.over():
-            self.play_round(player1, player2)
+            self.play_round(player1, player2, p1_team, p2_team)
         result=0
-        if player2.defeated():
+        if p2_team.defeated():
             result=1
-        elif player1.defeated():
+        elif p1_team.defeated():
             result=-1
         return result
 
@@ -419,35 +449,47 @@ class TeamCompositions:
  
  
  
-def create_random_team(type_library, weights=None):
-    pokemon_team = []
-    types = [Type(i) for i in range(len(Type))]
+def create_random_config(type_library, weights=None):
+    config = []
     for i in range(6):
         type1, type2 = type_library.sample(weights)
-        pokemon_team.append(
-                Pokemon(name=f"Random{i}", primary_typing=type1, secondary_typing=type2)
-        )
-    return pokemon_team
- 
- 
-def play_games(type_library, composition, n_trials=100, weights=None):
-    for i in range(n_trials):
-        p1 = Player("P1", create_random_team(type_library, weights), is_human=False)
-        print("Player 1 team")
-        print(p1.pokemon_team)
-        p2 = Player("P2", create_random_team(type_library, weights), is_human=False)
-        print("Player 2 team")
-        print(p2.pokemon_team)
-        game = PokemonGame(n_iterations=500, debug=False)
-        result = game.play(p1, p2)
-        composition.add_types(TypeLibrary.get_indices(p1.pokemon_team), not p1.defeated())
+        config.append((type1, type2))
+    return config
+
+def generate_team(config):
+    return PokemonTeam([
+            Pokemon(name=f"Random{i}", primary_typing=type1, secondary_typing=type2)
+            for i, (type1, type2) in enumerate(config)
+    ])
+
+def generate_player(config):
+    return Player("Youngster Joey", config, is_human=False)
+
+def print_team(config):
+    team_string = "Team: ["
+    for type1, type2 in config:
+        team_string += f"|{type1.name}, {type2.name}| "
+    team_string += "]"
+    print(team_string)
+
+def play_pokemon_tournament(game, type_library, n_players=100, weights=None):
+    factory = generate_player
+    tournament = Tournament(game, factory)
+    configs = [create_random_config(type_library, weights) for i in range(n_players)]
+    for config in configs:
+        print_team(config)
+    wins = tournament.play_round(configs)
+    return wins
 
 if __name__ == "__main__":
     types = TypeLibrary()
     composition = TeamCompositions(types.n_types)
-    play_games(types, composition, n_trials=100)
-    for i in range(50):
-        play_games(types, composition, n_trials=10, weights=composition.win_percentages)
-    win_percentages, _ = composition.breakdown_by_type()
-    for i in range(len(Type)):
-        print(f"{Type(i).name} : {win_percentages[i]*100}%")
+    game = PokemonGame(n_iterations=500, debug=True)
+    results = play_pokemon_tournament(game, types, n_players=20)
+    print(results)
+    # play_games(types, composition, n_trials=100)
+    # for i in range(50):
+    #     play_games(types, composition, n_trials=10, weights=composition.win_percentages)
+    # win_percentages, _ = composition.breakdown_by_type()
+    # for i in range(len(Type)):
+    #     print(f"{Type(i).name} : {win_percentages[i]*100}%")

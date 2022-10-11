@@ -17,6 +17,10 @@ class Game(ABC):
     def play(self, player1: Player, player2: Player):
         pass
 
+    @abstractmethod
+    def reset(self):
+        pass
+
 
 @attrs.define
 class Tournament:
@@ -25,18 +29,17 @@ class Tournament:
     player_factory : Any # Callable[list[Integer
 
     def play_round(self, player_configs: list[np.ndarray]) -> np.ndarray:
-        players = [player_factory(config) for config in player_configs]
+        players = [self.player_factory(config) for config in player_configs]
         wins = np.zeros(len(player_configs))
         for i, p1 in enumerate(players):
             for j, p2 in enumerate(players[(i+1):]):
-                result = game.play(p1, p2)
-                print(f"{i} vs. {j}")
-                print(result)
+                result = self.game.play(p1, p2)
                 # TODO: Make result an enum
                 if result >= 0: 
                     wins[i] += 1
                 if result <= 0:
                     wins[j+i+1] += 1
+                self.game.reset()
         return wins
 
 # Test classes
