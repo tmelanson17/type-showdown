@@ -411,7 +411,7 @@ class TypeLibrary:
         return len(self._types)
 
     def get_types(self, idx):
-        return self._types[idx]
+        return self._types[int(idx)]
  
  
 class TeamCompositions:
@@ -469,34 +469,40 @@ def generate_team(config):
 def generate_player(config):
     return Player("Youngster Joey", config, is_human=False)
 
-def print_team(config):
-    team_string = "Team: ["
-    for type1, type2 in config:
-        team_string += f"|{type1.name}, {type2.name}| "
-    team_string += "]"
-    print(team_string)
+def print_teams(type_library, configs):
+    type_configs = convert_configs(type_library, configs)
+    print("==========")
+    for cfg in type_configs:
+        team_string = "Team: ["
+        for type1, type2 in cfg:
+            team_string += f"|{type1.name}, {type2.name}| "
+        team_string += "]\n"
+        print(team_string)
+    print("==========")
 
 def convert_configs(type_library, input_configs):
+    print(input_configs)
     return [
             [type_library.get_types(idx) for idx in config]
             for config in input_configs
     ]
 
-def play_pokemon_tournament(game, type_library, input_configs, weights=None):
+# TODO: fix this so the tournament/fitness function can be run independently of type
+def play_pokemon_tournament(game, type_library, input_configs):
     factory = generate_player
     tournament = Tournament(game, factory)
     configs = convert_configs(type_library, input_configs)
     wins = tournament.play_round(configs)
-    for config in configs:
-        print_team(config)
+    print(wins)
     return wins
+
 
 if __name__ == "__main__":
     # Test TypeLibrary derives
 
     types = TypeLibrary()
     print("Expected: |Fire/Null|, |God/Null|, |Weak/God|, |Weak/Flying|, |Flying/Grass|, |Ground/Normal|")
-    print_team([types.get_types(idx) for idx in [0,8,44,38,25,31]])
+    print_team([idx for idx in [0,8,44,38,25,31]])
     composition = TeamCompositions(types.n_types)
     configs = create_random_configs(n_types=types.n_types, n_players=20)
     game = PokemonGame(n_iterations=500, debug=True)
