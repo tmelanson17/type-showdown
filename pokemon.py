@@ -1,6 +1,7 @@
 import random
 from attrs import define, field
 from enum import Enum, IntEnum
+import numpy as np
 from tournament import Player, Game, Tournament
 
 class Type(IntEnum):
@@ -408,6 +409,9 @@ class TypeLibrary:
     @property
     def n_types(self):
         return len(self._types)
+
+    def get_types(self, idx):
+        return self._types[idx]
  
  
 class TeamCompositions:
@@ -449,12 +453,12 @@ class TeamCompositions:
  
  
  
-def create_random_config(type_library, weights=None):
-    config = []
-    for i in range(6):
-        type1, type2 = type_library.sample(weights)
-        config.append((type1, type2))
-    return config
+def create_random_configs(n_types, n_players, n_pokemon=6):
+    return [
+            [np.random.randint(n_types) for i in range(n_pokemon)]
+            for j in range(n_players)
+    ]
+
 
 def generate_team(config):
     return PokemonTeam([
@@ -472,20 +476,31 @@ def print_team(config):
     team_string += "]"
     print(team_string)
 
-def play_pokemon_tournament(game, type_library, n_players=100, weights=None):
+def convert_configs(type_library, input_configs):
+    return [
+            [type_library.get_types(idx) for idx in config]
+            for config in input_configs
+    ]
+
+def play_pokemon_tournament(game, type_library, input_configs, weights=None):
     factory = generate_player
     tournament = Tournament(game, factory)
-    configs = [create_random_config(type_library, weights) for i in range(n_players)]
+    configs = convert_configs(type_library, input_configs)
+    wins = tournament.play_round(configs)
     for config in configs:
         print_team(config)
-    wins = tournament.play_round(configs)
     return wins
 
 if __name__ == "__main__":
+    # Test TypeLibrary derives
+
     types = TypeLibrary()
+    print("Expected: |Fire/Null|, |God/Null|, |Weak/God|, |Weak/Flying|, |Flying/Grass|, |Ground/Normal|")
+    print_team([types.get_types(idx) for idx in [0,8,44,38,25,31]])
     composition = TeamCompositions(types.n_types)
+    configs = create_random_configs(n_types=types.n_types, n_players=20)
     game = PokemonGame(n_iterations=500, debug=True)
-    results = play_pokemon_tournament(game, types, n_players=20)
+    results = play_pokemon_tournament(game, types, configs)
     print(results)
     # play_games(types, composition, n_trials=100)
     # for i in range(50):
