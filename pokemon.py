@@ -3,36 +3,37 @@ from attrs import define, field
 from enum import Enum, IntEnum
 import numpy as np
 from tournament import Player, Game, Tournament
+from type_matchup_reader import Type, EFFECTIVE_TABLE
 
-class Type(IntEnum):
-    NULL = 0
-    FIRE = 1 #9
-    WATER = 2 #17
-    GRASS = 3 #24
-    NORMAL = 4 #30
-    FLYING = 5 #35
-    GROUND = 6 #39
-    ELECTRIC = 7 #42
-    GOD = 8 #44
-    WEAK = 9
-    
- 
-# Need to account for null
-# 0=not effective, negative = not very effective times x, positive = super effective times x
-EFFECTIVE_TABLE = [
- [+1, +1, +1, +1, +1, +1, +1, +1, +1, +1],# NULL 
- [+1, -2, -2, +2, +1, +1, +1, +1, +0, +2],# FIRE 
- [+1, +2, -2, -2, +1, +1, +2, +1, +0, +2],#WATER 
- [+1, -2, +2, -2, +1, -2, +2, +1, +0, +2],#GRASS 
- [+1, +1, +1, +1, +1, +1, +1, +1, +0, +2],# NRML 
- [+1, +1, +1, +2, +1, +1, +1, -2, +0, +2],#FLYNG 
- [+1, +2, +1, -2, +1, +0, +1, +2, +0, +2],# GRND 
- [+1, +1, +2, -2, +1, +2, +0, -2, +0, +2],# ELEC 
- [+1, +2, +2, +2, +2, +2, +2, +2, +1, +4],# GOD 
- [+1, +0, +0, +0, +0, +0, +0, +0, +0, +1],# WEAK 
- #NL #FR #WTR#GR #NRM#FLY#GRD#ELE#GOD#WEAK
- ]
- 
+# class Type(IntEnum):
+#     NULL = 0
+#     FIRE = 1 #9
+#     WATER = 2 #17
+#     GRASS = 3 #24
+#     NORMAL = 4 #30
+#     FLYING = 5 #35
+#     GROUND = 6 #39
+#     ELECTRIC = 7 #42
+#     GOD = 8 #44
+#     WEAK = 9
+#     
+#  
+# # Need to account for null
+# # 0=not effective, negative = not very effective times x, positive = super effective times x
+# EFFECTIVE_TABLE = [
+#  [+1, +1, +1, +1, +1, +1, +1, +1, +1, +1],# NULL 
+#  [+1, -2, -2, +2, +1, +1, +1, +1, +0, +2],# FIRE 
+#  [+1, +2, -2, -2, +1, +1, +2, +1, +0, +2],#WATER 
+#  [+1, -2, +2, -2, +1, -2, +2, +1, +0, +2],#GRASS 
+#  [+1, +1, +1, +1, +1, +1, +1, +1, +0, +2],# NRML 
+#  [+1, +1, +1, +2, +1, +1, +1, -2, +0, +2],#FLYNG 
+#  [+1, +2, +1, -2, +1, +0, +1, +2, +0, +2],# GRND 
+#  [+1, +1, +2, -2, +1, +2, +0, -2, +0, +2],# ELEC 
+#  [+1, +2, +2, +2, +2, +2, +2, +2, +1, +4],# GOD 
+#  [+1, +0, +0, +0, +0, +0, +0, +0, +0, +1],# WEAK 
+#  #NL #FR #WTR#GR #NRM#FLY#GRD#ELE#GOD#WEAK
+#  ]
+#  
 # TODO: centralize damage calculations
 # TODO: clean up AI state
 class AI:
@@ -502,7 +503,7 @@ if __name__ == "__main__":
 
     types = TypeLibrary()
     print("Expected: |Fire/Null|, |God/Null|, |Weak/God|, |Weak/Flying|, |Flying/Grass|, |Ground/Normal|")
-    print_team([idx for idx in [0,8,44,38,25,31]])
+    print_teams(types, [[idx for idx in [0,8,44,38,25,31]]])
     composition = TeamCompositions(types.n_types)
     configs = create_random_configs(n_types=types.n_types, n_players=20)
     game = PokemonGame(n_iterations=500, debug=True)
