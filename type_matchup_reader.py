@@ -22,13 +22,13 @@ def create_type_and_matchups():
                     first_col=False
                     continue
                 single_type_matchup.append(int(col))
-            matchups.append(single_type_matchup)
+            matchups.append(tuple(single_type_matchup))
         print(type_names)
         print(matchups)
         Type = IntEnum('Type', {t:i for t,i in zip(type_names, range(len(type_names)))})
         print([t for t in Type])
         assert Type.NULL in Type, "Must include NULL Type!"
         assert len(matchups) == len(matchups[0]), "Type matchup rows/columns must match!"
-    return Type, matchups
+    return Type, tuple(m for m in matchups)
 
 Type, EFFECTIVE_TABLE = create_type_and_matchups()

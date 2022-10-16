@@ -7,12 +7,12 @@ if __name__ == "__main__":
     fn = lambda configs : play_pokemon_tournament(game, types, configs)
     represent_fn = lambda config : print_teams(types, config)
     g = GeneticAlgorithm(
-            population_size=20, 
-            max_iterations=1000,
-            min_iterations=10,
-            n_convergence_iterations=10,
+            population_size=100, 
+            max_iterations=3,
+            min_iterations=2,
+            n_convergence_iterations=2,
             n_gene_variants=types.n_types, 
-            n_parents=15,
+            n_parents=40,
             n_mutations=15,
             chromosone_length=6, 
             fitness_fn=fn,

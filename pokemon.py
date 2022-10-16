@@ -5,35 +5,7 @@ import numpy as np
 from tournament import Player, Game, Tournament
 from type_matchup_reader import Type, EFFECTIVE_TABLE
 
-# class Type(IntEnum):
-#     NULL = 0
-#     FIRE = 1 #9
-#     WATER = 2 #17
-#     GRASS = 3 #24
-#     NORMAL = 4 #30
-#     FLYING = 5 #35
-#     GROUND = 6 #39
-#     ELECTRIC = 7 #42
-#     GOD = 8 #44
-#     WEAK = 9
-#     
-#  
-# # Need to account for null
-# # 0=not effective, negative = not very effective times x, positive = super effective times x
-# EFFECTIVE_TABLE = [
-#  [+1, +1, +1, +1, +1, +1, +1, +1, +1, +1],# NULL 
-#  [+1, -2, -2, +2, +1, +1, +1, +1, +0, +2],# FIRE 
-#  [+1, +2, -2, -2, +1, +1, +2, +1, +0, +2],#WATER 
-#  [+1, -2, +2, -2, +1, -2, +2, +1, +0, +2],#GRASS 
-#  [+1, +1, +1, +1, +1, +1, +1, +1, +0, +2],# NRML 
-#  [+1, +1, +1, +2, +1, +1, +1, -2, +0, +2],#FLYNG 
-#  [+1, +2, +1, -2, +1, +0, +1, +2, +0, +2],# GRND 
-#  [+1, +1, +2, -2, +1, +2, +0, -2, +0, +2],# ELEC 
-#  [+1, +2, +2, +2, +2, +2, +2, +2, +1, +4],# GOD 
-#  [+1, +0, +0, +0, +0, +0, +0, +0, +0, +1],# WEAK 
-#  #NL #FR #WTR#GR #NRM#FLY#GRD#ELE#GOD#WEAK
-#  ]
-#  
+
 # TODO: centralize damage calculations
 # TODO: clean up AI state
 class AI:
@@ -42,18 +14,20 @@ class AI:
  
     def calculate_damage(self, pokemon, attacking_type):
         return multiply_type_effectiveness(
-                AttackOption(attacking_type), 
-                pokemon.types()
+                attacking_type, 
+                pokemon.types
         )
  
     def calculate_best_move_damage(self, attacking_pokemon, recv_pokemon):
         max_damage = 0
         max_idx=0
-        for i, typ in enumerate(attacking_pokemon.types()):
+        i=0
+        for typ in attacking_pokemon.types:
             calc_damage = self.calculate_damage(recv_pokemon, typ)
             if calc_damage > max_damage:
                 max_damage = calc_damage
                 max_idx = i
+            i+=1
         return max_damage, max_idx
  
     def optimal_move(self, state, options):
@@ -61,7 +35,6 @@ class AI:
         active_pokemon = state['active_pokemon']
         pokemon_team = state['pokemon_team']
         # Assume you get to attack next turn, and that both moves hit
-        expected_values = []
         max_opposing_damage, opposing_type = self.calculate_best_move_damage(opposing_pokemon, active_pokemon) 
         
         max_two_turn_expected_value = -99
@@ -72,10 +45,10 @@ class AI:
                         self.calculate_damage(opposing_pokemon, o.type) - 
                         max_opposing_damage
                 )
-            elif o.is_swap():
+            else:
                 swap_pokemon = pokemon_team[o.new_idx]
                 expected_damage = self.calculate_best_move_damage(swap_pokemon, opposing_pokemon)[0]
-                expected_damage -= self.calculate_damage(swap_pokemon, opposing_pokemon.types()[opposing_type])
+                expected_damage -= self.calculate_damage(swap_pokemon, opposing_pokemon.types[opposing_type])
                 expected_damage -= self.calculate_best_move_damage(opposing_pokemon, swap_pokemon)[0]
             if expected_damage > max_two_turn_expected_value:
                 max_two_turn_expected_value = expected_damage
@@ -85,13 +58,12 @@ class AI:
         
         
  
-def multiply_type_effectiveness(attack, types):
-    attack_type_int = int(attack.type)
-    damage = attack.base_damage
-    for type in types:
-       if type == Type.NULL:
-           continue
-       type_int = int(type) 
+def multiply_type_effectiveness(attack_type, types):
+    attack_type_int = int(attack_type)
+    # TODO: not use base damage somehow
+    damage = 4
+    for typ in types:
+       type_int = int(typ) 
        effectiveness = EFFECTIVE_TABLE[attack_type_int][type_int]
        if effectiveness < 0:
            damage = damage // abs(effectiveness)
@@ -119,8 +91,10 @@ class Pokemon(object):
     health : int = field(default=16)
     max_health: int = field(default=16)
     status : Status = field(default=Status.NRM)
+    types : list = field(init=False)
  
-    def types(self):
+    @types.default
+    def _get_types(self):
         return [self.primary_typing, self.secondary_typing]
 
 @define
@@ -279,7 +253,7 @@ class PokemonGame(Game):
         if self.debug:
             print(f"{att_team.get_active_pokemon().name} used {str(action)} on {recv_team.get_active_pokemon().name}!")
         
-        damage = multiply_type_effectiveness(action, recv_team.get_active_pokemon().types())
+        damage = multiply_type_effectiveness(action.type, recv_team.get_active_pokemon().types)
         return recv_team.take_damage(damage)
  
     def play_round(self, player1, player2, p1_team, p2_team):
@@ -354,10 +328,10 @@ class PokemonGame(Game):
                     self.execute_swap(start_player, start_team, swp)
  
         if p1_team.defeated():
-            print("Player 2 wins!")
+            #print("Player 2 wins!")
             self._over = True
         if p2_team.defeated():
-            print("Player 1 wins!")
+            #print("Player 1 wins!")
             self._over = True   
         self._iterations += 1
  
@@ -502,16 +476,11 @@ if __name__ == "__main__":
     # Test TypeLibrary derives
 
     types = TypeLibrary()
-    print("Expected: |Fire/Null|, |God/Null|, |Weak/God|, |Weak/Flying|, |Flying/Grass|, |Ground/Normal|")
-    print_teams(types, [[idx for idx in [0,8,44,38,25,31]]])
+    # print(f"Types: {types.n_types}")
+    # print("Expected: |Fire/Null|, |God/Null|, |Weak/God|, |Weak/Flying|, |Flying/Grass|, |Ground/Normal|")
+    # print_teams(types, [[0,8,44,38,25,31]])
     composition = TeamCompositions(types.n_types)
-    configs = create_random_configs(n_types=types.n_types, n_players=20)
-    game = PokemonGame(n_iterations=500, debug=True)
+    configs = create_random_configs(n_types=types.n_types, n_players=50)
+    game = PokemonGame(n_iterations=500, debug=False)
     results = play_pokemon_tournament(game, types, configs)
     print(results)
-    # play_games(types, composition, n_trials=100)
-    # for i in range(50):
-    #     play_games(types, composition, n_trials=10, weights=composition.win_percentages)
-    # win_percentages, _ = composition.breakdown_by_type()
-    # for i in range(len(Type)):
-    #     print(f"{Type(i).name} : {win_percentages[i]*100}%")

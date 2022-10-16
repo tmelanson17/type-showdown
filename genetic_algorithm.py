@@ -86,7 +86,6 @@ class GeneticAlgorithm:
         CONVERGENCE_THRESHOLD = 1e-6
         normalized_history = self._fitness_history / np.sum(self._fitness_history)
         fitness_diff = np.sqrt(np.max(np.square(normalized_history[1:] - normalized_history[:-1])))
-        print(fitness_diff)
         # return fitness_diff < CONVERGENCE_THRESHOLD or self._iterations >= self.max_iterations
         return self._iterations >= self.max_iterations
 
