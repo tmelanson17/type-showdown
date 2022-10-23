@@ -2,7 +2,7 @@ import random
 from attrs import define, field
 from enum import Enum, IntEnum
 import numpy as np
-from tournament import Player, Game, Tournament
+from tournament import Player, Game, SingleEliminationTournament
 from type_matchup_reader import Type, EFFECTIVE_TABLE
 
 
@@ -465,7 +465,7 @@ def convert_configs(type_library, input_configs):
 # TODO: fix this so the tournament/fitness function can be run independently of type
 def play_pokemon_tournament(game, type_library, input_configs):
     factory = generate_player
-    tournament = Tournament(game, factory)
+    tournament = SingleEliminationTournament(game, factory)
     configs = convert_configs(type_library, input_configs)
     wins = tournament.play_round(configs)
     print(wins)
