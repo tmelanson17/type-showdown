@@ -83,10 +83,10 @@ class SingleEliminationTournament(Tournament):
                 if result <= 0:
                     wins[p2_idx] += 1
                 new_indices.append(winner_idx)
+                self.game.reset()
                 
             indices = new_indices
-        # Normalize by square (because we're only doing logn tries)
-        return np.square(wins)
+        return wins
         
 
 

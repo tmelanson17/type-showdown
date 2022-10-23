@@ -9,7 +9,7 @@ if __name__ == "__main__":
     population_size=128
     g = GeneticAlgorithm(
             population_size=population_size, 
-            max_iterations=1000,
+            max_iterations=50,
             min_iterations=2,
             n_convergence_iterations=2,
             n_gene_variants=types.n_types, 
