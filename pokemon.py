@@ -444,8 +444,19 @@ def generate_team(config):
 def generate_player(config):
     return Player("Youngster Joey", config, is_human=False)
 
+def record_type_count(configs, n_types):
+    type_makeup_log = "type_makeups.log"
+    bins = np.bincount(configs.astype(np.int64).flatten(), minlength=n_types)
+    with open(type_makeup_log, 'a') as logfile:
+        logfile.write(
+                ",".join([str(a) for a in bins])
+        )
+        logfile.write("\n")
+        logfile.close()
+
 def print_teams(type_library, configs):
     type_configs = convert_configs(type_library, configs)
+    record_type_count(configs, type_library.n_types)
     print("==========")
     for cfg in type_configs:
         team_string = "Team: ["
@@ -476,11 +487,11 @@ if __name__ == "__main__":
     # Test TypeLibrary derives
 
     types = TypeLibrary()
-    # print(f"Types: {types.n_types}")
-    # print("Expected: |Fire/Null|, |God/Null|, |Weak/God|, |Weak/Flying|, |Flying/Grass|, |Ground/Normal|")
-    # print_teams(types, [[0,8,44,38,25,31]])
+    print(f"Types: {types.n_types}")
+    print("Expected (when Weak + God are around: |Fire/Null|, |God/Null|, |Weak/God|, |Weak/Flying|, |Flying/Grass|, |Ground/Normal|")
+    print_teams(types, np.array([[0,8,44,38,25,31]]))
     composition = TeamCompositions(types.n_types)
-    configs = create_random_configs(n_types=types.n_types, n_players=50)
+    configs = create_random_configs(n_types=types.n_types, n_players=64)
     game = PokemonGame(n_iterations=500, debug=False)
     results = play_pokemon_tournament(game, types, configs)
     print(results)
