@@ -420,12 +420,13 @@ def play_games(type_library, composition, n_trials=100, weights=None):
         composition.add_types(TypeLibrary.get_indices(p1.pokemon_team), not p1.defeated())
         composition.add_types(TypeLibrary.get_indices(p2.pokemon_team), not p2.defeated())
  
-types = TypeLibrary()
-composition = TeamCompositions(types.n_types)
-play_games(types, composition, n_trials=100)
-for i in range(50):
-    play_games(types, composition, n_trials=10, weights=composition.win_percentages)
-win_percentages, _ = composition.breakdown_by_type()
-for i in range(len(Type)):
-    print(f"{Type(i).name} : {win_percentages[i]*100}%")
+if __name__ == "__main__":
+    types = TypeLibrary()
+    composition = TeamCompositions(types.n_types)
+    play_games(types, composition, n_trials=100)
+    for i in range(50):
+        play_games(types, composition, n_trials=10, weights=composition.win_percentages)
+    win_percentages, _ = composition.breakdown_by_type()
+    for i in range(len(Type)):
+        print(f"{Type(i).name} : {win_percentages[i]*100}%")
 
