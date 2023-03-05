@@ -49,6 +49,35 @@ class RoundRobinTournament(Tournament):
                 self.game.reset()
         return wins
 
+@attrs.define
+class NTrialsTournament(Tournament):
+    n_trials : int = 10
+    # TODO : Enforce no repeat matches
+    # TODO : Use ELO score for fitness
+    def play_round(self, player_configs: list[np.ndarray]) -> np.ndarray:
+        players = [self.player_factory(config) for config in player_configs]
+        wins = np.zeros(len(player_configs))
+        indices = [i for i in range(len(players))]
+        for i in range(self.n_trials):
+            random.shuffle(indices)
+            for i in range(0, len(indices), 2):
+                p1 = players[i]
+                p1_idx = indices[i]
+                next_idx = (i+1)%len(indices)
+                # TODO: Should I allow this? One extra iteration
+                p2 = players[next_idx]
+                p2_idx = indices[next_idx]
+                result = self.game.play(p1, p2)
+                if result > 0:
+                    wins[p1_idx] += 1
+                elif result == 0:
+                    wins[p1_idx] += 0.5
+                    wins[p2_idx] += 0.5
+                elif result < 0:
+                    wins[p2_idx] += 1
+                self.game.reset()
+        return wins
+
 
 @attrs.define
 class SingleEliminationTournament(Tournament):
@@ -156,4 +185,12 @@ if __name__ == "__main__":
     p3 = np.array([0,0,1])
     p4 = np.array([0,0,1])
     results = tournament.play_round([p1, p2, p3, p4])
+    print(results)
+
+    tournament = NTrialsTournament(game, player_factory, n_trials=10)
+    p1 = lambda  : np.array([0,1,0])
+    p2 = lambda  : np.array([1,0,0])
+    p3 = lambda  : np.array([0,0,1])
+    results = tournament.play_round([p1(),p1(),p1(),p2(),p2(),p2(),p2(),p2(),p2(),p2(),p2(),p2(),p3(),p3(),p3()])
+    print("N trials")
     print(results)
